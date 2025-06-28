@@ -1,0 +1,5 @@
+package com.ef.banner.cursos.repository;
+@Repository
+public interface CarritoDetalleRepository extends JpaRepository<CarritoDetalle, Long> {
+    List<CarritoDetalle> findByCarritoId(Long carritoId);
+}

@@ -1,0 +1,22 @@
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class UserRegisterDTO {
+    @NotBlank
+    private String nombreCompleto;
+
+    @Email
+    private String correo;
+
+    @NotBlank
+    private String password;
+
+    @NotBlank
+    private String dni;
+
+    @NotNull
+    private LocalDate fechaNacimiento;
+
+    private String direccion;
+}

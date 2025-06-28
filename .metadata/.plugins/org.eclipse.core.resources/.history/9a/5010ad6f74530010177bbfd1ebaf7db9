@@ -1,0 +1,101 @@
+package com.ef.banner.cursos.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.ef.banner.cursos.feign.UsuarioClient;
+import com.ef.banner.cursos.model.Curso;
+import com.ef.banner.cursos.model.Inscripcion;
+import com.ef.banner.cursos.model.Pago;
+import com.ef.banner.cursos.rabbit.ProductorRabbitMQ;
+import com.ef.banner.cursos.repository.CursoRepository;
+import com.ef.banner.cursos.repository.InscripcionRepository;
+import com.ef.banner.cursos.repository.PagoRepository;
+
+@Service
+public class InscripcionService {
+
+	@Autowired
+	private InscripcionRepository inscripcionRepository;
+
+	@Autowired
+	private ProductorRabbitMQ productorRabbitMQ;
+
+	@Autowired
+	private PagoRepository pagoRepository;
+
+	@Autowired
+	private UsuarioClient usuarioClient;
+
+	@Autowired
+	private CursoRepository cursoRepository;
+
+	public Inscripcion inscribirse(Long usuarioId, Long cursoId) {
+		if (inscripcionRepository.existsByUsuarioIdAndCursoId(usuarioId, cursoId)) {
+			throw new IllegalArgumentException("⚠️ Ya estás inscrito en este curso.");
+		}
+
+		Curso curso = cursoRepository.findById(cursoId)
+				.orElseThrow(() -> new IllegalArgumentException("❌ Curso no encontrado."));
+
+		if (!curso.getActivo())
+			throw new IllegalArgumentException("⚠️ El curso no está activo.");
+		if (curso.getVacantesDisponibles() <= 0)
+			throw new IllegalArgumentException("🚫 No hay vacantes disponibles.");
+		if (curso.getCreditos() == null || curso.getCreditos() < 1 || curso.getCreditos() > 5) {
+			throw new IllegalArgumentException("❌ Créditos inválidos para este curso.");
+		}
+
+		double costo = curso.getCreditos() * 20.0;
+
+		try {
+			usuarioClient.descontarSaldo(usuarioId, costo);
+		} catch (Exception ex) {
+			throw new IllegalStateException("⚠️ No se pudo procesar el pago. Verifica tu saldo.");
+		}
+
+		curso.setVacantesDisponibles(curso.getVacantesDisponibles() - 1);
+		cursoRepository.save(curso);
+
+		Inscripcion insc = Inscripcion.builder().usuarioId(usuarioId).cursoId(cursoId)
+				.fechaInscripcion(LocalDateTime.now()).activo(true).build();
+
+		Inscripcion nueva = inscripcionRepository.save(insc);
+
+		Pago pago = Pago.builder().usuarioId(usuarioId).cursoId(cursoId).fechaPago(LocalDateTime.now()).monto(costo)
+				.descripcion("Inscripción al curso: " + curso.getNombre()).build();
+
+		pagoRepository.save(pago);
+
+		productorRabbitMQ.enviarMensaje("🧾 Usuario " + usuarioId + " pagó S/" + costo + " por curso " + cursoId);
+
+		return nueva;
+	}
+
+	public List<Inscripcion> listarPorUsuario(Long usuarioId) {
+		return inscripcionRepository.findByUsuarioId(usuarioId);
+	}
+
+	public List<Inscripcion> listarPorCurso(Long cursoId) {
+		return inscripcionRepository.findByCursoIdAndActivoTrue(cursoId);
+	}
+
+	public void cancelarInscripcion(Long id) {
+		Inscripcion insc = inscripcionRepository.findById(id).orElse(null);
+		if (insc != null) {
+			insc.setActivo(false);
+			inscripcionRepository.save(insc);
+		}
+	}
+
+	public List<Inscripcion> listarTodas() {
+		return inscripcionRepository.findAll();
+	}
+
+	public Inscripcion buscarPorId(Long id) {
+		return inscripcionRepository.findById(id).orElse(null);
+	}
+}

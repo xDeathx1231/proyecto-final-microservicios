@@ -1,0 +1,22 @@
+package com.ef.banner.cursos.feign;
+
+import com.ef.banner.cursos.config.FeignConfig;
+import com.ef.banner.cursos.dto.UsuarioDTO;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
+
+@FeignClient(name = "usuario-service", configuration = FeignConfig.class)
+public interface UsuarioClient {
+
+	@GetMapping("/usuarios/id/{id}")
+	UsuarioDTO obtenerUsuarioPorId(@PathVariable("id") Long id);
+
+	@PutMapping("/usuarios/{id}/descontar-saldo")
+	void descontarSaldo(@PathVariable("id") Long id, @RequestParam("monto") Double monto);
+
+}

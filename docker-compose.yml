@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+
+  # 🟢 Base de datos MySQL
+  mysql-db:
+    image: mysql:8
+    container_name: mysql-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: proyecto_final
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppassword
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 🟢 Eureka Server
+  service-eureka:
+    build: ./service-eureka
+    container_name: service-eureka
+    ports:
+      - "8761:8761"
+
+  # 🟢 Usuario Service
+  usuario-service:
+    build: ./usuario-service
+    container_name: usuario-service
+    depends_on:
+      - mysql-db
+      - service-eureka
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/proyecto_final
+      - SPRING_DATASOURCE_USERNAME=appuser
+      - SPRING_DATASOURCE_PASSWORD=apppassword
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-eureka:8761/eureka/
+    ports:
+      - "8081:8080"
+
+  # 🟢 Cursos Service
+  cursos-service:
+    build: ./cursos-service
+    container_name: cursos-service
+    depends_on:
+      - mysql-db
+      - service-eureka
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/proyecto_final
+      - SPRING_DATASOURCE_USERNAME=appuser
+      - SPRING_DATASOURCE_PASSWORD=apppassword
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-eureka:8761/eureka/
+    ports:
+      - "8082:8080"
+
+volumes:
+  mysql_data:

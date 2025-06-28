@@ -1,0 +1,7 @@
+package com.ef.banner.cursos.dto;
+@Data
+public class CarritoDTO {
+    private Long id;
+    private Long usuarioId;
+    private String estado;
+}

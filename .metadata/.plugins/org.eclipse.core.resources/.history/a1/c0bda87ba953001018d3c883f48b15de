@@ -1,0 +1,60 @@
+package com.ef.banner.cursos.controller;
+
+import com.ef.banner.cursos.model.Carrito;
+import com.ef.banner.cursos.model.CarritoInscripcion;
+import com.ef.banner.cursos.service.CarritoService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/carrito")
+@CrossOrigin(origins = "*")
+@Tag(name = "Carrito de Inscripción", description = "Gestión del carrito de cursos seleccionados antes del pago final")
+public class CarritoController {
+
+	@Autowired
+	private CarritoService carritoService;
+
+	@Operation(summary = "Ver carrito", description = "Obtiene el carrito pendiente del usuario")
+	@GetMapping("/usuario/{usuarioId}")
+	@PreAuthorize("hasAnyRole('ESTUDIANTE', 'ADMIN')")
+	public ResponseEntity<CarritoInscripcion> verCarrito(@PathVariable Long usuarioId) {
+		CarritoInscripcion carrito = carritoService.verCarrito(usuarioId);
+		return ResponseEntity.ok(carrito);
+	}
+
+	@Operation(summary = "Agregar curso al carrito", description = "Agrega un curso al carrito del usuario")
+	@PostMapping("/usuario/{usuarioId}/agregar/{cursoId}")
+	@PreAuthorize("hasAnyRole('ESTUDIANTE', 'ADMIN')")
+	public ResponseEntity<CarritoInscripcion> agregarCurso(@PathVariable Long usuarioId, @PathVariable Long cursoId) {
+		CarritoInscripcion carrito = carritoService.agregarCurso(usuarioId, cursoId);
+		return ResponseEntity.ok(carrito);
+	}
+
+	@Operation(summary = "Quitar curso del carrito", description = "Elimina un curso del carrito del usuario")
+	@DeleteMapping("/usuario/{usuarioId}/quitar/{cursoId}")
+	@PreAuthorize("hasAnyRole('ESTUDIANTE', 'ADMIN')")
+	public ResponseEntity<CarritoInscripcion> quitarCurso(@PathVariable Long usuarioId, @PathVariable Long cursoId) {
+		CarritoInscripcion carrito = carritoService.quitarCurso(usuarioId, cursoId);
+		return ResponseEntity.ok(carrito);
+	}
+
+	@Operation(summary = "Confirmar pago del carrito", description = "Realiza el pago y crea las inscripciones")
+	@PostMapping("/usuario/{usuarioId}/confirmar")
+	@PreAuthorize("hasAnyRole('ESTUDIANTE', 'ADMIN')")
+	public ResponseEntity<String> confirmarPago(@PathVariable Long usuarioId) {
+		carritoService.confirmarPago(usuarioId);
+		return ResponseEntity.ok("✅ Pago confirmado y cursos inscritos");
+	}
+	
+	@PreAuthorize("hasAnyRole('ESTUDIANTE','ADMIN')")
+	@GetMapping("/usuario/{usuarioId}/pagado")
+	public ResponseEntity<Carrito> obtenerCarritoPagadoPorUsuarioId(@PathVariable Long usuarioId) {
+	    return ResponseEntity.ok(carritoService.obtenerCarritoPagadoPorUsuarioId(usuarioId));
+	}
+
+}

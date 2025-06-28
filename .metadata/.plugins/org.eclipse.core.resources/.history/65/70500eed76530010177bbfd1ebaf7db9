@@ -1,0 +1,19 @@
+package com.ef.banner.cursos.model;
+@Entity
+@Table(name = "carrito_detalle")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CarritoDetalle {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "carrito_id")
+    private CarritoInscripcion carrito;
+
+    private Long cursoId;
+}

@@ -1,0 +1,16 @@
+package com.ef.banner.cursos.feign;
+
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
+
+import com.ef.banner.cursos.dto.UsuarioDTO;
+
+@FeignClient(name = "usuario-service", url = "http://localhost:8081")
+public interface UsuarioClient {
+
+    @GetMapping("/{id}")
+    UsuarioDTO obtenerUsuarioPorIdConToken(@PathVariable("id") Long id,
+                                        @RequestHeader("Authorization") String token);
+}

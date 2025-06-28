@@ -1,0 +1,10 @@
+package com.ef.banner.cursos.dto;
+
+import lombok.Data;
+
+@Data
+public class CarritoDTO {
+	private Long id;
+	private Long usuarioId;
+	private String estado;
+}

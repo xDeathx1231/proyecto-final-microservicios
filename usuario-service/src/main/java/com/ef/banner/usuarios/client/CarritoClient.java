@@ -1,0 +1,19 @@
+package com.ef.banner.usuarios.client;
+
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
+import com.ef.banner.usuarios.dto.CarritoDTO;
+
+@FeignClient(name = "cursos-service", configuration = FeignConfig.class)
+public interface CarritoClient {
+	
+	@GetMapping("/api/carrito/usuario/{usuarioId}")
+	CarritoDTO obtenerCarritoPorUsuarioId(@PathVariable("usuarioId") Long usuarioId);
+	
+	@GetMapping("/api/carrito/usuario/{usuarioId}/pagado")
+	CarritoDTO obtenerCarritoPagadoPorUsuarioId(@PathVariable Long usuarioId);
+
+
+}

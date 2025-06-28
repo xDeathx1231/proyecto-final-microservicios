@@ -1,0 +1,86 @@
+package com.ef.banner.usuarios.service;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.ef.banner.usuarios.dto.UserRegisterDTO;
+import com.ef.banner.usuarios.model.Usuario;
+import com.ef.banner.usuarios.repository.UsuarioRepository;
+
+@Service
+public class UsuarioService {
+
+	@Autowired
+	private UsuarioRepository repository;
+
+	private final BCryptPasswordEncoder password = new BCryptPasswordEncoder();
+
+
+	public Usuario registrarUsuarioDesdeDTO(UserRegisterDTO dto) {
+		Usuario usuario = Usuario.builder().nombreCompleto(dto.getNombreCompleto()).correo(dto.getCorreo())
+				.password(password.encode(dto.getPassword())).dni(dto.getDni())
+				.fechaNacimiento(dto.getFechaNacimiento()).direccion(dto.getDireccion()).telefono(dto.getTelefono())
+				.saldoDisponible(1000.0).rol(Usuario.Rol.ESTUDIANTE).build();
+
+		return repository.save(usuario);
+	}
+
+	public Optional<Usuario> buscarPorId(Long id) {
+		return repository.findById(id);
+	}
+
+	public Optional<Usuario> buscarPorCorreo(String correo) {
+		return repository.findByCorreo(correo);
+	}
+
+	public List<Usuario> listarUsuarios() {
+		return repository.findAll();
+	}
+
+	public boolean existeCorreo(String correo) {
+		return repository.findByCorreo(correo).isPresent();
+	}
+
+	public Optional<Usuario> actualizarContacto(Long id, String correo, String telefono, String direccion) {
+		Optional<Usuario> optionalUsuario = repository.findById(id);
+		if (optionalUsuario.isPresent()) {
+			Usuario usuario = optionalUsuario.get();
+			usuario.setCorreo(correo);
+			usuario.setTelefono(telefono);
+			usuario.setDireccion(direccion);
+			repository.save(usuario);
+		}
+		return optionalUsuario;
+	}
+
+	public Usuario guardar(Usuario usuario) {
+		return repository.save(usuario);
+	}
+
+	public void cambiarPassword(Long id, String nuevaPassword) {
+		repository.findById(id).ifPresent(usuario -> {
+			usuario.setPassword(new BCryptPasswordEncoder().encode(nuevaPassword));
+			repository.save(usuario);
+		});
+	}
+
+	public void cambiarPasswordPorRecuperacion(Long id, String nuevaPassword) {
+		Usuario usuario = repository.findById(id).orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+		String nuevaPasswordEncriptada = password.encode(nuevaPassword);
+		usuario.setPassword(nuevaPasswordEncriptada);
+
+		repository.save(usuario);
+	}
+
+	public void actualizarSaldo(Long id, Double nuevoSaldo) {
+		Usuario usuario = repository.findById(id).orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+		usuario.setSaldoDisponible(nuevoSaldo);
+		repository.save(usuario);
+	}
+
+}

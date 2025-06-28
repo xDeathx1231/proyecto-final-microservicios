@@ -1,0 +1,19 @@
+@Entity
+@Table(name = "pagos")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Pago {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private Long usuarioId;
+    private Long cursoId;
+    private LocalDateTime fechaPago;
+    private Double monto;
+
+    private String descripcion;
+}

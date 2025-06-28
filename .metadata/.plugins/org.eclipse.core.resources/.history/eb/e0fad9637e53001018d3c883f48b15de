@@ -1,0 +1,6 @@
+package com.ef.banner.usuarios.client;
+@FeignClient(name = "cursos-service", url = "http://localhost:8082")
+public interface CarritoClient {
+    @GetMapping("/carritos/{id}")
+    CarritoDTO obtenerCarritoPorId(@PathVariable Long id);
+}

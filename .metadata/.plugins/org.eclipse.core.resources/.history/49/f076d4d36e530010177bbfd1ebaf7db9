@@ -1,0 +1,65 @@
+package com.ef.banner.cursos.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.ef.banner.cursos.model.Inscripcion;
+import com.ef.banner.cursos.rabbit.ProductorRabbitMQ;
+import com.ef.banner.cursos.repository.InscripcionRepository;
+
+@Service
+public class InscripcionService {
+
+    @Autowired
+    private InscripcionRepository inscripcionRepository;
+
+    @Autowired
+    private ProductorRabbitMQ productorRabbitMQ;
+
+    public Inscripcion inscribirse(Long usuarioId, Long cursoId) {
+        if (inscripcionRepository.existsByUsuarioIdAndCursoId(usuarioId, cursoId)) {
+            throw new RuntimeException("Ya estás inscrito en este curso");
+        }
+
+        Inscripcion insc = Inscripcion.builder()
+            .usuarioId(usuarioId)
+            .cursoId(cursoId)
+            .fechaInscripcion(LocalDateTime.now())
+            .activo(true)
+            .build();
+
+        Inscripcion nueva = inscripcionRepository.save(insc);
+
+        String mensaje = "📝 Usuario " + usuarioId + " se inscribió al curso " + cursoId;
+        productorRabbitMQ.enviarMensaje(mensaje);
+
+        return nueva;
+    }
+
+    public List<Inscripcion> listarPorUsuario(Long usuarioId) {
+        return inscripcionRepository.findByUsuarioId(usuarioId);
+    }
+
+    public List<Inscripcion> listarPorCurso(Long cursoId) {
+        return inscripcionRepository.findByCursoIdAndActivoTrue(cursoId);
+    }
+
+    public void cancelarInscripcion(Long id) {
+        Inscripcion insc = inscripcionRepository.findById(id).orElse(null);
+        if (insc != null) {
+            insc.setActivo(false);
+            inscripcionRepository.save(insc);
+        }
+    }
+
+    public List<Inscripcion> listarTodas() {
+        return inscripcionRepository.findAll();
+    }
+
+    public Inscripcion buscarPorId(Long id) {
+        return inscripcionRepository.findById(id).orElse(null);
+    }
+}

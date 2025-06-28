@@ -1,0 +1,86 @@
+package com.ef.banner.cursos.controller;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import com.ef.banner.cursos.dto.CursoDTO;
+import com.ef.banner.cursos.model.Curso;
+import com.ef.banner.cursos.service.CursoService;
+
+import io.swagger.v3.oas.annotations.Operation;
+
+@RestController
+@RequestMapping("/api/cursos")
+@CrossOrigin(origins = "*")
+public class CursoController {
+
+    @Autowired
+    private CursoService cursoService;
+
+    @Operation(summary = "Registrar curso")
+    //@PreAuthorize("hasRole('ADMIN')")
+    @PostMapping
+    public ResponseEntity<Curso> crearCurso(@RequestBody CursoDTO dto) {
+        return ResponseEntity.ok(cursoService.crearCurso(dto));
+    }
+
+    @Operation(summary = "Actualizar curso")
+    //@PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{id}")
+    public ResponseEntity<Curso> actualizarCurso(@PathVariable Long id, @RequestBody Curso curso) {
+        Curso actualizado = cursoService.actualizarCurso(id, curso);
+        return actualizado != null ? ResponseEntity.ok(actualizado) : ResponseEntity.notFound().build();
+    }
+
+    @Operation(summary = "Eliminar curso (baja lógica)")
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminarCurso(@PathVariable Long id) {
+        cursoService.eliminarCurso(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Listar cursos activos")
+    @GetMapping("/activos")
+    public ResponseEntity<List<Curso>> listarActivos() {
+        return ResponseEntity.ok(cursoService.listarActivos());
+    }
+
+    @Operation(summary = "Listar todos los cursos")
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping
+    public ResponseEntity<List<Curso>> listarTodos() {
+        return ResponseEntity.ok(cursoService.listarTodos());
+    }
+
+    @Operation(summary = "Listar cursos por profesor")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PROFESOR')")
+    @GetMapping("/profesor/{id}")
+    public ResponseEntity<List<Curso>> listarPorProfesor(@PathVariable Long id) {
+        return ResponseEntity.ok(cursoService.listarPorProfesor(id));
+    }
+
+    @Operation(summary = "Buscar curso por ID")
+    @GetMapping("/{id}")
+    public ResponseEntity<Curso> buscarPorId(@PathVariable Long id) {
+        Curso curso = cursoService.buscarPorId(id);
+        return curso != null ? ResponseEntity.ok(curso) : ResponseEntity.notFound().build();
+    }
+
+    @Operation(summary = "Listar cursos que inician después de una fecha")
+    @GetMapping("/despues")
+    public ResponseEntity<List<Curso>> cursosDespuesDe(@RequestParam("fecha") LocalDateTime fecha) {
+        return ResponseEntity.ok(cursoService.buscarCursosQueEmpiezanDespues(fecha));
+    }
+
+    @Operation(summary = "Listar cursos que finalizan antes de una fecha")
+    @GetMapping("/antes")
+    public ResponseEntity<List<Curso>> cursosAntesDe(@RequestParam("fecha") LocalDateTime fecha) {
+        return ResponseEntity.ok(cursoService.buscarCursosQueFinalizanAntes(fecha));
+    }
+}

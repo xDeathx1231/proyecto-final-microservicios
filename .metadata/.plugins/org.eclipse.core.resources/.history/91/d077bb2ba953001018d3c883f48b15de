@@ -1,0 +1,12 @@
+package com.ef.banner.cursos.repository;
+
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.ef.banner.cursos.model.Carrito;
+
+public interface CarritoRepository extends JpaRepository<Carrito, Long> {
+
+    Optional<Carrito> findFirstByUsuarioIdAndEstadoIgnoreCase(Long usuarioId, String estado);
+}

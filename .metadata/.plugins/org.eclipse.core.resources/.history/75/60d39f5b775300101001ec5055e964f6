@@ -1,0 +1,4 @@
+@Repository
+public interface CarritoDetalleRepository extends JpaRepository<CarritoDetalle, Long> {
+    List<CarritoDetalle> findByCarritoId(Long carritoId);
+}

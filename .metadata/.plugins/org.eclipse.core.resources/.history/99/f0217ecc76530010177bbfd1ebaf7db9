@@ -1,0 +1,27 @@
+@Entity
+@Table(name = "carrito_inscripcion")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CarritoInscripcion {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private Long usuarioId;
+
+    private int totalCreditos;
+
+    private double montoEstimado;
+
+    private String estado; // "PENDIENTE", "PAGADO", "CANCELADO"
+
+    private LocalDateTime fechaCreacion;
+
+    private LocalDateTime fechaPago;
+
+    @OneToMany(mappedBy = "carrito", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<CarritoDetalle> detalles = new ArrayList<>();
+}

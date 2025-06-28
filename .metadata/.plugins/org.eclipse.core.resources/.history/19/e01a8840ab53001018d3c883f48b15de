@@ -1,0 +1,176 @@
+package com.ef.banner.cursos.service;
+
+import com.ef.banner.cursos.model.*;
+import com.ef.banner.cursos.repository.*;
+import com.ef.banner.cursos.feign.UsuarioClient;
+import com.ef.banner.cursos.dto.UsuarioDTO;
+import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+@Service
+public class CarritoService {
+
+	@Autowired
+	private CarritoInscripcionRepository carritoRepo;
+
+	@Autowired
+	private CarritoDetalleRepository detalleRepo;
+
+	@Autowired
+	private CursoRepository cursoRepo;
+
+	@Autowired
+	private UsuarioClient usuarioClient;
+
+	@Autowired
+	private InscripcionRepository inscripcionRepo;
+
+	@Autowired
+	private PagoRepository pagoRepo;
+	
+	@Autowired
+	private CarritoRepository carritoRepository;
+
+
+	/**
+	 * Obtener el carrito PENDIENTE o crear uno nuevo.
+	 */
+	public CarritoInscripcion obtenerOCrearCarrito(Long usuarioId) {
+		return carritoRepo.findByUsuarioIdAndEstado(usuarioId, "PENDIENTE").orElseGet(() -> {
+			CarritoInscripcion nuevo = CarritoInscripcion.builder().usuarioId(usuarioId).estado("PENDIENTE")
+					.fechaCreacion(LocalDateTime.now()).totalCreditos(0).montoEstimado(0.0).build();
+			return carritoRepo.save(nuevo);
+		});
+	}
+
+	/**
+	 * Agregar un curso al carrito del usuario.
+	 */
+	public CarritoInscripcion agregarCurso(Long usuarioId, Long cursoId) {
+		CarritoInscripcion carrito = obtenerOCrearCarrito(usuarioId);
+
+		// Verificar que el curso exista
+		Curso curso = cursoRepo.findById(cursoId)
+				.orElseThrow(() -> new IllegalArgumentException("❌ Curso no encontrado"));
+
+		// Validar vacantes
+		if (!curso.getActivo() || curso.getVacantesDisponibles() <= 0) {
+			throw new IllegalArgumentException("⚠️ Curso sin vacantes o inactivo");
+		}
+
+		// Verificar duplicado en carrito
+		boolean yaExiste = carrito.getDetalles().stream().anyMatch(d -> d.getCursoId().equals(cursoId));
+		if (yaExiste) {
+			throw new IllegalArgumentException("⚠️ Curso ya está en tu carrito");
+		}
+
+		// TODO: Validar choque de horarios con otros cursos en carrito
+
+		// Agregar al detalle
+		CarritoDetalle detalle = CarritoDetalle.builder().carrito(carrito).cursoId(cursoId).build();
+
+		carrito.getDetalles().add(detalle);
+
+		// Recalcular totales
+		carrito.setTotalCreditos(carrito.getTotalCreditos() + curso.getCreditos());
+		carrito.setMontoEstimado(carrito.getMontoEstimado() + curso.getCreditos() * 20.0);
+
+		return carritoRepo.save(carrito);
+	}
+
+	/**
+	 * Quitar curso del carrito.
+	 */
+	public CarritoInscripcion quitarCurso(Long usuarioId, Long cursoId) {
+		CarritoInscripcion carrito = obtenerOCrearCarrito(usuarioId);
+
+		Optional<CarritoDetalle> detalleOpt = carrito.getDetalles().stream().filter(d -> d.getCursoId().equals(cursoId))
+				.findFirst();
+
+		if (detalleOpt.isEmpty()) {
+			throw new IllegalArgumentException("⚠️ Curso no está en tu carrito");
+		}
+
+		CarritoDetalle detalle = detalleOpt.get();
+		carrito.getDetalles().remove(detalle);
+		detalleRepo.delete(detalle);
+
+		// Recalcular totales
+		Curso curso = cursoRepo.findById(cursoId)
+				.orElseThrow(() -> new IllegalArgumentException("Curso no encontrado"));
+		carrito.setTotalCreditos(carrito.getTotalCreditos() - curso.getCreditos());
+		carrito.setMontoEstimado(carrito.getMontoEstimado() - curso.getCreditos() * 20.0);
+
+		return carritoRepo.save(carrito);
+	}
+
+	/**
+	 * Ver contenido del carrito.
+	 */
+	public CarritoInscripcion verCarrito(Long usuarioId) {
+		return obtenerOCrearCarrito(usuarioId);
+	}
+
+	/**
+	 * Confirmar pago: validar, descontar saldo, crear inscripciones
+	 */
+	@Transactional
+	public void confirmarPago(Long usuarioId) {
+		CarritoInscripcion carrito = carritoRepo.findByUsuarioIdAndEstado(usuarioId, "PENDIENTE")
+				.orElseThrow(() -> new IllegalArgumentException("❌ No tienes carrito pendiente"));
+
+		if (carrito.getDetalles().isEmpty()) {
+			throw new IllegalArgumentException("⚠️ Tu carrito está vacío");
+		}
+
+		// Validar saldo
+		UsuarioDTO usuario = usuarioClient.obtenerUsuarioPorId(usuarioId);
+		if (usuario.getSaldoDisponible() < carrito.getMontoEstimado()) {
+			throw new IllegalArgumentException("⚠️ Saldo insuficiente");
+		}
+
+		// Validar vacantes
+		for (CarritoDetalle d : carrito.getDetalles()) {
+			Curso curso = cursoRepo.findById(d.getCursoId())
+					.orElseThrow(() -> new IllegalArgumentException("Curso no encontrado"));
+			if (!curso.getActivo() || curso.getVacantesDisponibles() <= 0) {
+				throw new IllegalArgumentException("⚠️ Curso sin vacantes o inactivo");
+			}
+		}
+
+		// Descontar saldo
+		usuarioClient.descontarSaldo(usuarioId, carrito.getMontoEstimado());
+
+		// Confirmar inscripciones y descontar vacantes
+		for (CarritoDetalle d : carrito.getDetalles()) {
+			Curso curso = cursoRepo.findById(d.getCursoId()).get();
+			curso.setVacantesDisponibles(curso.getVacantesDisponibles() - 1);
+			cursoRepo.save(curso);
+
+			Inscripcion insc = Inscripcion.builder().usuarioId(usuarioId).cursoId(curso.getId())
+					.fechaInscripcion(LocalDateTime.now()).activo(true).build();
+			inscripcionRepo.save(insc);
+
+			Pago pago = Pago.builder().usuarioId(usuarioId).cursoId(curso.getId()).fechaPago(LocalDateTime.now())
+					.monto(curso.getCreditos() * 20.0).descripcion("Inscripción al curso: " + curso.getNombre())
+					.build();
+			pagoRepo.save(pago);
+		}
+
+		carrito.setEstado("PAGADO");
+		carrito.setFechaPago(LocalDateTime.now());
+		carritoRepo.save(carrito);
+	}
+	
+	public Carrito obtenerUltimoCarritoPagadoPorUsuarioId(Long usuarioId) {
+	    return carritoRepository
+	            .findTopByUsuarioIdAndEstadoIgnoreCaseAndFechaPagoIsNotNullOrderByFechaPagoDesc(usuarioId, "PAGADO")
+	            .orElseThrow(() -> new RuntimeException("El usuario no tiene un carrito pagado"));
+	}
+
+
+}

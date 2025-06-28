@@ -1,0 +1,109 @@
+package com.ef.banner.cursos.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.ef.banner.cursos.dto.CursoDTO;
+import com.ef.banner.cursos.dto.UsuarioDTO;
+import com.ef.banner.cursos.feign.UsuarioClient;
+import com.ef.banner.cursos.model.Curso;
+import com.ef.banner.cursos.repository.CursoRepository;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
+
+@Service
+public class CursoService {
+
+	@Autowired
+	private CursoRepository cursoRepository;
+
+	@Autowired
+	private UsuarioClient usuarioClient;
+
+	public Curso crearCurso(CursoDTO dto) {
+	    String token = extraerTokenActual();
+	    UsuarioDTO profesor = usuarioClient.obtenerUsuarioPorIdConToken(dto.getProfesorId(), "Bearer " + token);
+	    
+	    if (!profesor.getRol().equalsIgnoreCase("PROFESOR")) {
+	        throw new RuntimeException("El usuario no tiene rol de PROFESOR");
+	    }
+
+	    Curso curso = Curso.builder()
+	            .nombre(dto.getNombre())
+	            .descripcion(dto.getDescripcion())
+	            .profesorId(dto.getProfesorId())
+	            .horarioPropuesto(dto.getHorarioPropuesto())
+	            .fechaInicio(dto.getFechaInicio())
+	            .fechaFin(dto.getFechaFin())
+	            .duracionHoras(dto.getDuracionHoras())
+	            .categoria(dto.getCategoria())
+	            .activo(dto.getActivo() != null ? dto.getActivo() : true)
+	            .vacantes(dto.getVacantes())
+	            .vacantesDisponibles(dto.getVacantesDisponibles())
+	            .build();
+
+	    return cursoRepository.save(curso);
+	}
+
+	public Curso actualizarCurso(Long id, Curso datos) {
+		Curso curso = cursoRepository.findById(id).orElse(null);
+		if (curso != null) {
+			curso.setNombre(datos.getNombre());
+			curso.setDescripcion(datos.getDescripcion());
+			curso.setProfesorId(datos.getProfesorId());
+			curso.setHorarioPropuesto(datos.getHorarioPropuesto());
+			curso.setFechaInicio(datos.getFechaInicio());
+			curso.setFechaFin(datos.getFechaFin());
+			curso.setDuracionHoras(datos.getDuracionHoras());
+			curso.setCategoria(datos.getCategoria());
+			curso.setActivo(datos.getActivo());
+			curso.setVacantes(datos.getVacantes());
+			curso.setVacantesDisponibles(datos.getVacantesDisponibles());
+			return cursoRepository.save(curso);
+		}
+		return null;
+	}
+
+	public void eliminarCurso(Long id) {
+		Curso curso = cursoRepository.findById(id).orElse(null);
+		if (curso != null) {
+			curso.setActivo(false);
+			cursoRepository.save(curso);
+		}
+	}
+
+	public List<Curso> listarActivos() {
+		return cursoRepository.findByActivoTrue();
+	}
+
+	public List<Curso> listarTodos() {
+		return cursoRepository.findAll();
+	}
+
+	public List<Curso> listarPorProfesor(Long idProfesor) {
+		return cursoRepository.findByProfesorIdAndActivoTrue(idProfesor);
+	}
+
+	public Curso buscarPorId(Long id) {
+		return cursoRepository.findById(id).orElse(null);
+	}
+
+	public List<Curso> buscarCursosQueEmpiezanDespues(LocalDateTime fecha) {
+		return cursoRepository.findByFechaInicioAfter(fecha);
+	}
+
+	public List<Curso> buscarCursosQueFinalizanAntes(LocalDateTime fecha) {
+		return cursoRepository.findByFechaFinBefore(fecha);
+	}
+	
+	private String extraerTokenActual() {
+	    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+	    if (auth != null && auth.getCredentials() != null) {
+	        return auth.getCredentials().toString();
+	    }
+	    return null;
+	}
+}

@@ -1,0 +1,5 @@
+package com.ef.banner.cursos.repository;
+@Repository
+public interface PagoRepository extends JpaRepository<Pago, Long> {
+    List<Pago> findByUsuarioId(Long usuarioId);
+}

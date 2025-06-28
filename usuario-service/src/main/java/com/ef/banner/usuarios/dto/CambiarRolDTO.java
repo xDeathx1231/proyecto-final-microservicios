@@ -1,0 +1,8 @@
+package com.ef.banner.usuarios.dto;
+
+import lombok.Data;
+
+@Data
+public class CambiarRolDTO {
+	private String nuevoRol;
+}

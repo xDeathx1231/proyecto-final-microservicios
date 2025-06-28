@@ -1,0 +1,166 @@
+package com.ef.banner.usuarios.controller;
+
+import java.util.Collections;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+
+import com.ef.banner.usuarios.config.JwtUtil;
+import com.ef.banner.usuarios.dto.CambiarPasswordDTO;
+import com.ef.banner.usuarios.dto.ContactoDTO;
+import com.ef.banner.usuarios.dto.ForgotPasswordDTO;
+import com.ef.banner.usuarios.dto.LoginRequestDTO;
+import com.ef.banner.usuarios.model.Usuario;
+import com.ef.banner.usuarios.service.EmailService;
+import com.ef.banner.usuarios.service.UsuarioService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@RestController
+@RequestMapping("/usuarios")
+@CrossOrigin(origins = "*")
+@Tag(name = "Usuarios", description = "Operaciones relacionadas con la gestión de usuarios")
+public class UsuarioController {
+
+	@Autowired
+	private UsuarioService service;
+
+	@Autowired
+	private EmailService emailService;
+
+	@Autowired
+	private JwtUtil jwtUtil;
+
+	private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+	@PostMapping("/registrar")
+	@Operation(summary = "Registrar nuevo usuario")
+	public ResponseEntity<?> registrar(@RequestBody Usuario usuario) {
+		if (service.existeCorreo(usuario.getCorreo())) {
+			return ResponseEntity.badRequest().body("El correo ya está registrado");
+		}
+		Usuario nuevoUsuario = service.registrarUsuario(usuario);
+		return ResponseEntity.ok(nuevoUsuario);
+	}
+
+	@PostMapping("/login")
+	@Operation(summary = "Iniciar sesión")
+	public ResponseEntity<?> login(@RequestBody LoginRequestDTO loginDto) {
+		Optional<Usuario> existente = service.buscarPorCorreo(loginDto.getCorreo());
+
+		if (existente.isPresent()) {
+			Usuario userBD = existente.get();
+			if (passwordEncoder.matches(loginDto.getPassword(), userBD.getPassword())) {
+				String token = jwtUtil.generarToken(userBD);
+				return ResponseEntity.ok(Collections.singletonMap("token", token));
+			} else {
+				return ResponseEntity.status(401).body("Contraseña incorrecta");
+			}
+		} else {
+			return ResponseEntity.status(404).body("Usuario no encontrado");
+		}
+	}
+
+	@Operation(summary = "Ver perfil de usuario", description = "Obtiene los datos de un usuario según su correo.")
+	@PreAuthorize("#correo == authentication.principal or hasRole('ADMIN')")
+	@GetMapping("/{correo}")
+	public ResponseEntity<Usuario> verPerfil(@PathVariable String correo) {
+		return service.buscarPorCorreo(correo).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+	}
+
+	@Operation(summary = "Actualizar datos de contacto")
+	@PreAuthorize("#id == authentication.principal.id or hasRole('ADMIN')")
+	@PutMapping("/{id}/contacto")
+	public ResponseEntity<?> actualizarContacto(@PathVariable Long id, @RequestBody ContactoDTO contactoDTO) {
+		Optional<Usuario> usuarioActualizado = service.actualizarContacto(id, contactoDTO.getCorreo(),
+				contactoDTO.getTelefono(), contactoDTO.getDireccion());
+
+		if (usuarioActualizado.isPresent()) {
+			return ResponseEntity.ok(usuarioActualizado.get());
+		} else {
+			return ResponseEntity.status(404).body("Usuario no encontrado");
+		}
+	}
+
+	@Operation(summary = "Cambiar contraseña")
+	@PreAuthorize("#id == authentication.principal.id or hasRole('ADMIN')")
+	@PutMapping("/{id}/password")
+	public ResponseEntity<?> cambiarPassword(@PathVariable Long id, @RequestBody CambiarPasswordDTO dto) {
+		Optional<Usuario> opUsuario = service.buscarPorId(id);
+		if (opUsuario.isEmpty()) {
+			return ResponseEntity.status(404).body("Usuario no encontrado");
+		}
+
+		Usuario usuario = opUsuario.get();
+
+		if (!passwordEncoder.matches(dto.getPasswordActual(), usuario.getPassword())) {
+			return ResponseEntity.status(401).body("Contraseña actual incorrecta");
+		}
+
+		if (!dto.getNuevaPassword().equals(dto.getConfirmarPassword())) {
+			return ResponseEntity.badRequest().body("La nueva contraseña y la confirmación no coinciden");
+		}
+
+		usuario.setPassword(passwordEncoder.encode(dto.getNuevaPassword()));
+		service.guardar(usuario);
+		return ResponseEntity.ok("Contraseña actualizada correctamente");
+	}
+
+	@PostMapping("/olvide-password")
+	@Operation(summary = "Enviar correo para recuperar contraseña")
+	public ResponseEntity<?> olvidePassword(@RequestBody ForgotPasswordDTO dto) {
+		Optional<Usuario> usuarioOpt = service.buscarPorCorreo(dto.getCorreo());
+		if (usuarioOpt.isPresent()) {
+			String token = jwtUtil.generarTokenRecuperacion(dto.getCorreo());
+			emailService.enviarCorreoRecuperacion(dto.getCorreo(), token);
+			return ResponseEntity.ok("Correo enviado con enlace para restablecer contraseña");
+		} else {
+			return ResponseEntity.status(404).body("Correo no registrado");
+		}
+	}
+
+	@PutMapping("/reset-password")
+	@Operation(summary = "Restablecer contraseña")
+	public ResponseEntity<?> resetPassword(@RequestParam String token, @RequestBody String nuevaPassword) {
+		try {
+			String correo = jwtUtil.extraerCorreo(token);
+
+			Optional<Usuario> usuarioOpt = service.buscarPorCorreo(correo);
+			if (usuarioOpt.isPresent()) {
+				Usuario usuario = usuarioOpt.get();
+				service.cambiarPasswordPorRecuperacion(usuario.getId(), nuevaPassword);
+				return ResponseEntity.ok("Contraseña restablecida correctamente");
+			} else {
+				return ResponseEntity.status(404).body("Usuario no encontrado");
+			}
+		} catch (Exception e) {
+			return ResponseEntity.status(400).body("Token inválido o expirado");
+		}
+	}
+
+	@PostMapping("/forgot-password")
+	@Operation(summary = "Solicitar restablecimiento de contraseña")
+	public ResponseEntity<?> forgotPassword(@RequestParam String correo) {
+		Optional<Usuario> usuarioOpt = service.buscarPorCorreo(correo);
+		if (usuarioOpt.isPresent()) {
+			Usuario usuario = usuarioOpt.get();
+			String token = jwtUtil.generarToken(usuario);
+			String enlace = "http://localhost:8081/usuarios/reset-password?token=" + token;
+
+			String mensaje = "Hola " + usuario.getNombreCompleto()
+					+ ",\n\nHaz clic en el siguiente enlace para restablecer tu contraseña:\n" + enlace
+					+ "\n\nSi no solicitaste este cambio, ignora este mensaje.";
+
+			emailService.enviarCorreo(usuario.getCorreo(), "Recuperación de contraseña", mensaje);
+
+			return ResponseEntity.ok("Correo de recuperación enviado");
+		} else {
+			return ResponseEntity.status(404).body("No existe un usuario con ese correo");
+		}
+	}
+}

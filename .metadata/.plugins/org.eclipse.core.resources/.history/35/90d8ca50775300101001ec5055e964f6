@@ -1,0 +1,4 @@
+package com.ef.banner.cursos.repository;
+public interface CarritoInscripcionRepository extends JpaRepository<CarritoInscripcion, Long> {
+    Optional<CarritoInscripcion> findByUsuarioIdAndEstado(Long usuarioId, String estado);
+}

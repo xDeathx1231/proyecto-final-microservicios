@@ -1,0 +1,11 @@
+package com.ef.banner.usuarios.dto;
+@Data
+@Builder
+public class BoletaPagoDTO {
+    private String numeroBoleta;       // 6 dígitos
+    private String nombreCompleto;
+    private String dni;
+    private LocalDate fechaNacimiento;
+    private String correo;
+    private String rol;
+}
